@@ -33,6 +33,40 @@ jobs:
           python -m pip install buildozer cython==0.29.36
       - name: Build debug APK
         run: buildozer -v android debug
+
+      - name: Sign APK with shared release identity (when signing secrets are configured)
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ] || [ -z "$ANDROID_KEYSTORE_PASSWORD" ] || [ -z "$ANDROID_KEY_ALIAS" ] || [ -z "$ANDROID_KEY_PASSWORD" ]; then
+            echo "::warning::Release signing secrets are not configured. This artifact will remain debug-signed and is not a verified release build."
+            exit 0
+          fi
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/.buildozer/android/platform/android-sdk}}"
+          KEYSTORE="$RUNNER_TEMP/lux-apps-release.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
+          APKSIGNER="$(find "$SDK_ROOT/build-tools" -type f -name apksigner 2>/dev/null | sort -V | tail -n 1)"
+          if [ -z "$APKSIGNER" ]; then
+            echo "::error::Android apksigner was not found in $SDK_ROOT/build-tools"
+            exit 1
+          fi
+          shopt -s nullglob
+          APK_FILES=(bin/*.apk)
+          if [ "${#APK_FILES[@]}" -eq 0 ]; then
+            echo "::error::No APK found to sign."
+            exit 1
+          fi
+          for APK in "${APK_FILES[@]}"; do
+            SIGNED="$RUNNER_TEMP/$(basename "${APK%.apk}")-release.apk"
+            "$APKSIGNER" sign --ks "$KEYSTORE" --ks-key-alias "$ANDROID_KEY_ALIAS" --ks-pass env:ANDROID_KEYSTORE_PASSWORD --key-pass env:ANDROID_KEY_PASSWORD --out "$SIGNED" "$APK"
+            "$APKSIGNER" verify --verbose "$SIGNED"
+            cp "$SIGNED" "$APK"
+          done
+          rm -f "$KEYSTORE"
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
