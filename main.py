@@ -22,8 +22,8 @@ class LuxShareApp(App):
         Clock.schedule_once(lambda _dt:self.start_discovery(),1);return self.manager
     def request_android_permissions(self,_dt):
         try:
-            from android.permissions import request_permissions,Permission
-            request_permissions([Permission.INTERNET,Permission.ACCESS_NETWORK_STATE,Permission.ACCESS_WIFI_STATE,Permission.CHANGE_WIFI_MULTICAST_STATE,"android.permission.NEARBY_WIFI_DEVICES"])
+            from android.permissions import request_permissions
+            request_permissions(["android.permission.INTERNET","android.permission.ACCESS_NETWORK_STATE","android.permission.ACCESS_WIFI_STATE","android.permission.CHANGE_WIFI_MULTICAST_STATE","android.permission.NEARBY_WIFI_DEVICES"])
         except Exception as e:print("Permission request:",e)
     def open_screen(self,name):self.manager.current=name
     def save_settings(self):
