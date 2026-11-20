@@ -1,54 +1,39 @@
-"""LuxShare application entry point.
-
-The UI and networking modules are kept separate so they can be added under
-screens/ and core/ without changing this entry point.
-"""
+"""LuxShare Android application entry point."""
+import json,os
 from kivy.app import App
+from kivy.uix.screenmanager import ScreenManager,Screen,FadeTransition
 from kivy.core.window import Window
-from kivy.uix.screenmanager import ScreenManager, NoTransition
-
-from config import APP_NAME, COLORS, WINDOW_TITLE
-
-
+from kivy.clock import Clock
+from config import APP_NAME,COLORS
+from core import DeviceDiscovery,LuxShareServer
+from utils.file_manager import get_receive_directory
+from screens import HomeScreen,SendScreen,ReceiveScreen,SettingsScreen
 class LuxShareApp(App):
-    title = WINDOW_TITLE
-
     def build(self):
-        Window.clearcolor = COLORS["background"]
-        self.manager = ScreenManager(transition=NoTransition())
-
-        # Import screens only when the app starts. This gives clear errors if
-        # a screen module has not yet been added to the repository.
+        self.title=APP_NAME;Window.clearcolor=COLORS["background"];self.settings_path=os.path.join(self.user_data_dir,"settings.json");self.device_name="LuxShare Device"
         try:
-            from screens.home import HomeScreen
-            from screens.send import SendScreen
-            from screens.receive import ReceiveScreen
-            from screens.settings import SettingsScreen
-        except ImportError as exc:
-            from kivy.uix.boxlayout import BoxLayout
-            from kivy.uix.label import Label
-            from kivy.uix.button import Button
-
-            fallback = BoxLayout(orientation="vertical", padding=24, spacing=16)
-            fallback.add_widget(Label(
-                text=f"{APP_NAME}\nProject setup is incomplete.\nMissing module: {exc}",
-                halign="center",
-                valign="middle",
-            ))
-            fallback.add_widget(Button(
-                text="Close",
-                size_hint_y=None,
-                height=52,
-                on_release=lambda *_: self.stop(),
-            ))
-            return fallback
-
-        self.manager.add_widget(HomeScreen(name="home"))
-        self.manager.add_widget(SendScreen(name="send"))
-        self.manager.add_widget(ReceiveScreen(name="receive"))
-        self.manager.add_widget(SettingsScreen(name="settings"))
-        return self.manager
-
-
-if __name__ == "__main__":
-    LuxShareApp().run()
+            with open(self.settings_path,"r",encoding="utf-8") as f:self.device_name=json.load(f).get("device_name",self.device_name)
+        except Exception:pass
+        self.receive_directory=get_receive_directory(self.user_data_dir);self.server=None;self.discovery=None
+        self.manager=ScreenManager(transition=FadeTransition())
+        for name,widget in (("home",HomeScreen(self)),("send",SendScreen(self)),("receive",ReceiveScreen(self)),("settings",SettingsScreen(self))):
+            page=Screen(name=name);page.add_widget(widget);self.manager.add_widget(page)
+        Clock.schedule_once(lambda _dt:self.start_discovery(),1);return self.manager
+    def open_screen(self,name):self.manager.current=name
+    def save_settings(self):
+        with open(self.settings_path,"w",encoding="utf-8") as f:json.dump({"device_name":self.device_name},f)
+    def start_discovery(self):
+        try:
+            if self.discovery:self.discovery.stop()
+            self.discovery=DeviceDiscovery(self.device_name);self.discovery.start()
+        except Exception as e:print("Discovery unavailable:",e)
+    def restart_discovery(self):self.start_discovery()
+    def start_server(self):
+        self.stop_server();receiver=self.manager.get_screen("receive").children[0]
+        self.server=LuxShareServer(self.receive_directory,on_request=receiver.confirm_request,on_progress=receiver.update_progress,device_name=self.device_name);self.server.start()
+    def stop_server(self):
+        if self.server:self.server.stop();self.server=None
+    def on_stop(self):
+        self.stop_server()
+        if self.discovery:self.discovery.stop()
+if __name__=="__main__":LuxShareApp().run()
