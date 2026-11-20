@@ -1,0 +1,2 @@
+# Desktop development dependency. Android dependencies are declared in buildozer.spec.
+Kivy==2.3.1
