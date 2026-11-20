@@ -13,6 +13,8 @@ android.minapi = 26
 android.api = 35
 android.archs = arm64-v8a,armeabi-v7a
 android.accept_sdk_license = True
+# Pin python-for-android to a stable release to avoid the Python 3.14/pip incompatibility
+p4a.branch = v2024.01.21
 android.private_storage = True
 android.allow_backup = False
 android.wakelock = True
