@@ -18,7 +18,13 @@ class LuxShareApp(App):
         self.manager=ScreenManager(transition=FadeTransition())
         for name,widget in (("home",HomeScreen(self)),("send",SendScreen(self)),("receive",ReceiveScreen(self)),("settings",SettingsScreen(self))):
             page=Screen(name=name);page.add_widget(widget);self.manager.add_widget(page)
+        if platform_is_android():Clock.schedule_once(self.request_android_permissions,1)
         Clock.schedule_once(lambda _dt:self.start_discovery(),1);return self.manager
+    def request_android_permissions(self,_dt):
+        try:
+            from android.permissions import request_permissions,Permission
+            request_permissions([Permission.INTERNET,Permission.ACCESS_NETWORK_STATE,Permission.ACCESS_WIFI_STATE,Permission.CHANGE_WIFI_MULTICAST_STATE,"android.permission.NEARBY_WIFI_DEVICES"])
+        except Exception as e:print("Permission request:",e)
     def open_screen(self,name):self.manager.current=name
     def save_settings(self):
         with open(self.settings_path,"w",encoding="utf-8") as f:json.dump({"device_name":self.device_name},f)
@@ -36,4 +42,9 @@ class LuxShareApp(App):
     def on_stop(self):
         self.stop_server()
         if self.discovery:self.discovery.stop()
+def platform_is_android():
+    try:
+        from kivy.utils import platform
+        return platform=="android"
+    except Exception:return False
 if __name__=="__main__":LuxShareApp().run()
